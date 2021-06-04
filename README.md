@@ -1,4 +1,4 @@
-# Learn Swift by examples
+# Learn Swift by examples. Beginner level
 This is a repository about my book entitled: *[Learn Swift by examples](https://fulmanski.pl/books/pl/index.php)*
 
 ![Learn Swift by examples - book cover](cover.png)
