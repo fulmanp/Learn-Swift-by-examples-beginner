@@ -3,7 +3,7 @@ This is a repository about my book entitled: *[Learn Swift by examples](https://
 
 ![Learn Swift by examples - book cover](cover.png)
 
-You can download sample directly from my web page *[Learn Swift by examples](https://fulmanski.pl/books/pl/index.php)* or buy it on Apple Books (soon).
+You can download sample directly from my web page *[Learn Swift by examples](https://fulmanski.pl/books/pl/index.php)* or buy for just a few dollars to support my work.
 
 Current version is: *1.0, June 2021 (**early access**), build number 202106040022*.
 
