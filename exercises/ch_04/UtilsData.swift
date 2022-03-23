@@ -1,5 +1,5 @@
 //
-//  UtilsData.swift
+//  utilsData.swift
 //  ch_04
 //
 //  Created by Piotr Fulmański on 09/03/2022.
