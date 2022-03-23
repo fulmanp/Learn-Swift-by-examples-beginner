@@ -58,17 +58,17 @@ print(allTags)
 // Searching
 
 // PDF documents about programming
-
-let pdfAndProgramming = allTags[tagPDF.uuid.uuidString]?.intersection((allTags[tagProgramming.uuid.uuidString])!)
-
 print("=== All PDF documents about programming")
 
-if let pdfAndProgramming = pdfAndProgramming {
-  print(pdfAndProgramming)
+let pdf = allTags[tagPDF.uuid.uuidString]
+let programming = allTags[tagProgramming.uuid.uuidString]
 
+if let pdf = pdf, let programming = programming {
+  let pdfAndProgramming = pdf.intersection(programming)
+  
   for documentUUID in pdfAndProgramming {
     if let document = allDocuments[documentUUID] {
-      print(document)
+      print(document.describe() ?? "undefined")
     }
   }
 }
