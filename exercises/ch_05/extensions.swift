@@ -12,3 +12,11 @@ extension String {
     Array(self)
   }
 }
+
+/*
+extension ProcessingResultType: Equatable {
+  static func == (lhs: ProcessingResultType, rhs: ProcessingResultType) -> Bool {
+    <#code#>
+  }
+}
+*/

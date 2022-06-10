@@ -7,22 +7,30 @@
 
 import Foundation
 
-enum ResultType {
+enum ProcessingResultType {
   case
-  unknown,
+  undefined,
   ok,
   emptyString,
   noSingleCharTokens,
   undefinedCharacter (Int), // at position
+  undefinedToken (Int), // starting at position
   unexpectedToken (Int), // starting at position
   missingToken (Int) // after position
 }
 
-class Result {
-  var msg: String?
-  var resultType = ResultType.unknown
+// Extension is here to prevent message
+// Extension outside of file declaring enum 'ProcessingResultType'
+// prevents automatic synthesis of '==' for protocol 'Equatable'
+extension ProcessingResultType: Equatable {
   
-  init(ofType resultType: ResultType, withMessage msg: String? = nil) {
+}
+
+class ProcessingResult {
+  var msg: String?
+  var resultType = ProcessingResultType.undefined
+  
+  init(ofType resultType: ProcessingResultType, withMessage msg: String? = nil) {
     self.resultType = resultType
     self.msg = msg
   }

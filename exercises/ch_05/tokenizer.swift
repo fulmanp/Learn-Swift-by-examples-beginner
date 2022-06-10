@@ -8,7 +8,7 @@
 import Foundation
 
 enum TypeOfToken {
-  case undefined
+  case undefined, unexpected
   case numberInteger, numberReal, identifier, action
   case openingBracket, closingBracket, space
   case separator
@@ -17,6 +17,7 @@ enum TypeOfToken {
 class Tokenizer {
   var formula = ""
   var singleCharTokens: [(character: Character, type: TypeOfCharacter, position: Int)] = []
+  var multipleCharTokens: [(string: String, type: TypeOfToken, position: (from: Int, to: Int))] = []
   var tokens: [(string: String, type: TypeOfToken, position: (from: Int, to: Int))] = []
   
   enum TypeOfCharacter {
@@ -33,8 +34,9 @@ class Tokenizer {
     self.formula = formula
   }
   
-  func getSingleCharTokens () -> Result {
-    guard !formula.isEmpty else {return Result(ofType: .emptyString)}
+  
+  func getSingleCharTokens () -> ProcessingResult {
+    guard !formula.isEmpty else {return ProcessingResult(ofType: .emptyString)}
     
     let characters = formula.toCharacters()
     singleCharTokens.removeAll()
@@ -61,20 +63,23 @@ class Tokenizer {
         }
       }
       
-      singleCharTokens.append((character: char, type: type, position: index))
+      // Remove all spaces, as I don't need them
+      if type != .space {
+        singleCharTokens.append((character: char, type: type, position: index))
+      }
       
       if type == .undefined {
-        return Result(ofType: .undefinedCharacter(index))
+        return ProcessingResult(ofType: .undefinedCharacter(index))
       }
     }
     
-    return Result(ofType: .ok)
+    return ProcessingResult(ofType: .ok)
   }
   
-  func getTokens () -> Result {
-    guard !singleCharTokens.isEmpty else {return Result(ofType: .noSingleCharTokens)}
+  
+  func getMultipleCharTokens () -> ProcessingResult {
+    guard !singleCharTokens.isEmpty else {return ProcessingResult(ofType: .noSingleCharTokens)}
     
-    var tokensTmp: [(string: String, type: TypeOfToken, position: (from: Int, to: Int))] = []
     let charTokenNumber = singleCharTokens.count
     var index = 0
     var begin = 0, end = 0
@@ -82,176 +87,243 @@ class Tokenizer {
     var string = ""
     
     while (index < charTokenNumber) {
-      if singleCharTokens[index].type == .action {
-        string = String(singleCharTokens[index].character)
+      let typeAux = singleCharTokens[index].type
+      let char = singleCharTokens[index].character
+      let position = singleCharTokens[index].position
+      
+      switch typeAux {
+      case .action:
+        string = String(char)
         type = .action
-        begin = singleCharTokens[index].position
+        begin = position
         end = begin
         index += 1
-      } else if singleCharTokens[index].type == .symbol {
-        string = String(singleCharTokens[index].character)
+      case .symbol:
+        string = String(char)
         if singleCharTokens[index].character == "(" {
           type = .openingBracket
         } else if singleCharTokens[index].character == ")" {
           type = .closingBracket
         }
-        begin = singleCharTokens[index].position
+        begin = position
         end = begin
         index += 1
-      } else if singleCharTokens[index].type == .separator {
-        string = String(singleCharTokens[index].character)
+      case .separator:
+        string = String(char)
         type = .separator
-        begin = singleCharTokens[index].position
+        begin = position
         end = begin
         index += 1
-      } else if singleCharTokens[index].type == .space {
-        string = String(singleCharTokens[index].character)
-        type = .space
-        begin = singleCharTokens[index].position
-        end = begin
-        index += 1
-      } else if singleCharTokens[index].type == .digit {
-        string = String(singleCharTokens[index].character)
+      case .digit:
+        string = String(char)
         type = .numberInteger
-        begin = singleCharTokens[index].position
+        begin = position
         index += 1
         while index < charTokenNumber && singleCharTokens[index].type == .digit {
           string += String(singleCharTokens[index].character)
           index += 1
         }
         end = singleCharTokens[index-1].position
-      } else if singleCharTokens[index].type == .letter {
-        string = String(singleCharTokens[index].character)
+      case .letter:
+        string = String(char)
         type = .identifier
-        begin = singleCharTokens[index].position
+        begin = position
         index += 1
         while index < charTokenNumber && singleCharTokens[index].type == .letter {
           string += String(singleCharTokens[index].character)
           index += 1
         }
         end = singleCharTokens[index-1].position
+      case .space:
+        // There should be no spaces here as I removed all of them
+        // in previous step: getSingleCharTokens () -> Result
+        return ProcessingResult(ofType: .undefinedCharacter(position))
+      case .undefined:
+        return ProcessingResult(ofType: .undefinedCharacter(position))
       }
       
-      tokensTmp.append((string: string, type: type, position: (from: begin, to: end)))
+      multipleCharTokens.append((string: string, type: type, position: (from: begin, to: end)))
     }
-    
-    // Remove unwanted spaces
-    tokens.removeAll()
-    var tokensCount = tokensTmp.count
-    index = 0
-    
-    while (index < tokensCount) {
-      tokens.append(tokensTmp[index])
       
-      if tokensTmp[index].type == .space {
-        // Consume all subsequent spaces
-        while index < tokensCount && tokensTmp[index].type == .space {
-          index += 1
-        }
-      } else {
-        index += 1
+    return ProcessingResult(ofType: .ok)
+  }
+  
+  
+  func parseNumber(fromIndex begin: Int) -> (type: TypeOfToken, tokenPosition: Int, string: String, begin: Int, end: Int, sizeInTokens: Int) {
+    let tokensCount = multipleCharTokens.count
+    let string = multipleCharTokens[begin].string
+    
+    // Must be real or invalid number
+    if multipleCharTokens[begin].type == .separator {
+      // Separator is the last character in sequence
+      if begin == tokensCount-1 {
+        return (type: TypeOfToken.undefined,
+                tokenPosition: begin,
+                string: string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin].position.to,
+                sizeInTokens: 1
+        )
+      }
+            
+      // Separator is not the last separator in the sequence,
+      // so it's safe to use begin+1 index.
+      if multipleCharTokens[begin+1].type == .numberInteger {
+        return (type: TypeOfToken.numberReal,
+                tokenPosition: begin,
+                string: string + multipleCharTokens[begin+1].string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin+1].position.to,
+                sizeInTokens: 2
+        )
+      }
+      
+      // numberInteger must follow separator. Other case means error
+      return (type: TypeOfToken.unexpected,
+              tokenPosition: begin+1,
+              string: multipleCharTokens[begin+1].string,
+              begin: multipleCharTokens[begin+1].position.from,
+              end: multipleCharTokens[begin+1].position.to,
+              sizeInTokens: 1
+      )
+    } // May be integer or real
+    else if multipleCharTokens[begin].type == .numberInteger {
+      // numberInteger is the last token in sequence
+      if begin == tokensCount-1 {
+        return (type: TypeOfToken.numberInteger,
+                tokenPosition: begin,
+                string: string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin].position.to,
+                sizeInTokens: 1
+        )
+      }
+      
+      // There must be at least one token following integer
+      // May be a pure integer: 123[SOMETHING]
+      if multipleCharTokens[begin+1].type != .separator {
+        return (type: TypeOfToken.numberInteger,
+                tokenPosition: begin,
+                string: multipleCharTokens[begin].string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin].position.to,
+                sizeInTokens: 1
+        )
+      }
+      
+      // May be a pure integer with separator: 123. and no more other tokens
+      if multipleCharTokens[begin+1].type == .separator
+          && begin+1 == tokensCount-1 {
+        return (type: TypeOfToken.numberReal,
+                tokenPosition: begin,
+                string: multipleCharTokens[begin].string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin+1].position.to,
+                sizeInTokens: 2
+        )
+      }
+      
+      // There are at least 2 tokens following integer
+      // It can be of the form: 123.[SOMETHING]
+      if multipleCharTokens[begin+1].type == .separator
+          && multipleCharTokens[begin+2].type != .numberInteger {
+        return (type: TypeOfToken.numberReal,
+                tokenPosition: begin,
+                string: string + multipleCharTokens[begin+1].string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin+1].position.to,
+                sizeInTokens: 2
+        )
+      }
+      
+      // It can be of the form 123.456
+      if multipleCharTokens[begin+1].type == .separator
+          && multipleCharTokens[begin+2].type == .numberInteger {
+        return (type: TypeOfToken.numberReal,
+                tokenPosition: begin+1,
+                string: string
+                + multipleCharTokens[begin+1].string
+                + multipleCharTokens[begin+2].string,
+                begin: multipleCharTokens[begin].position.from,
+                end: multipleCharTokens[begin+2].position.to,
+                sizeInTokens: 3
+        )
       }
     }
     
-    tokensTmp = tokens
+    // Shouldn't be ever returned
+    return (type: TypeOfToken.undefined,
+            tokenPosition: begin,
+            string: string,
+            begin: multipleCharTokens[begin].position.from,
+            end: multipleCharTokens[begin].position.to,
+            sizeInTokens: 1
+    )
+  }
+  
+  func identifyRealNumbers() -> ProcessingResult {
+    // Check presence of one separator just after another
+    let tokensCount = multipleCharTokens.count
     
-    // Trim
-    if tokensTmp[0].type == .space {
-      tokensTmp.removeFirst()
+    if tokensCount>1 {
+      for index in 0...tokensCount-2 {
+        if multipleCharTokens[index].type == .separator
+            && multipleCharTokens[index+1].type == .separator {
+          return ProcessingResult(ofType: .unexpectedToken(index+1))
+        }
+      }
     }
     
-    if tokensTmp[tokensTmp.count-1].type == .space {
-      tokensTmp.removeLast()
-    }
-    
-    // Check presence of real numbers
-    tokens.removeAll()
-    
-    tokensCount = tokensTmp.count
-    index = 0
-    
+    // 
+    var index = 0
     while (index < tokensCount) {
-      if ![TypeOfToken.numberInteger, TypeOfToken.separator].contains(tokensTmp[index].type) {
-        tokens.append(tokensTmp[index])
+      let type = multipleCharTokens[index].type
+      
+      switch type {
+      case .action, .identifier, .closingBracket, .openingBracket:
+        tokens.append(multipleCharTokens[index])
         index += 1
-      } else {
-        if tokensTmp[index].type == .numberInteger {
-          if index+1 < tokensCount {
-            if tokensTmp[index+1].type == .separator {
-              // There is a separator, so there may be also a fractional part
-              if index+2 < tokensCount {
-                if tokensTmp[index+2].type == .numberInteger {
-                  // There is a fractional part
-                  string = tokensTmp[index].string + "." + tokensTmp[index+2].string
-                  type = .numberReal
-                  begin = tokensTmp[index].position.from
-                  end = tokensTmp[index+2].position.to
-                  tokens.append((string: string,
-                                 type: type,
-                                 position: (from: begin, to: end))
-                  )
-                  index += 3
-                } else if tokensTmp[index+2].type == .separator {
-                  // Incorrect format - two separators one after another
-                  return Result(ofType: .unexpectedToken(tokensTmp[index+2].position.from))
-                } else { // There is no fractional part, so it must be 0.
-                  string = tokensTmp[index].string + ".0"
-                  type = .numberReal
-                  begin = tokensTmp[index].position.from
-                  end = tokensTmp[index+1].position.to
-                  tokens.append((string: string,
-                                 type: type,
-                                 position: (from: begin, to: end))
-                  )
-                  index += 2
-                }
-              } else {
-                // If not, this is a real number with a fractional part
-                // equal to 0.
-                string = tokensTmp[index].string + ".0"
-                type = .numberReal
-                begin = tokensTmp[index].position.from
-                end = tokensTmp[index+1].position.to
-                tokens.append((string: string,
-                               type: type,
-                               position: (from: begin, to: end))
-                )
-                index += 2
-              }
-            } else {
-              // No separator after integer part,
-              // so this must be an integer
-              tokens.append(tokensTmp[index])
-              index += 1
-            }
-          } else { // No more tokens, so this is an integer
-            tokens.append(tokensTmp[index])
-            index += 1
-          }
-        } else if tokensTmp[index].type == .separator {
-          if index+1 < tokensCount {
-            if tokensTmp[index+1].type == .numberInteger {
-              string = "0." + tokensTmp[index+1].string
-              type = .numberReal
-              begin = tokensTmp[index].position.from
-              end = tokensTmp[index+1].position.to
-              tokens.append((string: string,
-                             type: type,
-                             position: (from: begin, to: end))
-              )
-              index += 2
-            } else {
-              // For example ".a"
-              return Result(ofType: .unexpectedToken(tokensTmp[index+1].position.from))
-            }
-          } else {
-            // For example "."
-            return Result(ofType: .missingToken(tokensTmp[index].position.to))
-          }
+      case .numberInteger, .separator:
+        let result = parseNumber(fromIndex: index)
+        
+        if result.type == .unexpected {
+          return ProcessingResult(ofType: .unexpectedToken(result.tokenPosition))
+        } else if result.type == .undefined {
+          return ProcessingResult(ofType: .undefinedToken(result.tokenPosition))
+        } else {
+          tokens.append((string: result.string,
+                         type: result.type,
+                         position: (from: result.begin, to: result.end)))
         }
+        index += result.sizeInTokens
+      //case .numberReal:
+        // This type of token will be added in this while loop
+      //case .undefined, .space:
+        // There should be no undefined and space tokens at this level
+      default:
+        return ProcessingResult(ofType: .unexpectedToken(index))
       }
     }
     
-    return Result(ofType: .ok)
+    return ProcessingResult(ofType: .ok)
+  }
+  
+  
+  
+  func getTokens() -> ProcessingResult {
+    tokens.removeAll()
+    var result = getSingleCharTokens()
+    if result.resultType != .ok {
+      return result
+    }
+    result = getMultipleCharTokens()
+    if result.resultType != .ok {
+      return result
+    }
+    result = identifyRealNumbers()
+    if result.resultType != .ok {
+      return result
+    }
+    return ProcessingResult(ofType: .ok)
   }
 }
