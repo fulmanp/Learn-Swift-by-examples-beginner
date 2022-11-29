@@ -76,7 +76,7 @@ extension Device: UniquelyIdentifiable, Namable, Stringable {
     
     var values = [[String]]()
     values.append(["identifier", "String", identifier])
-    values.append(["deviceType", "DeviceType", String(describing: type(of: deviceType))])
+    values.append(["deviceType", "DeviceType", String(describing: deviceType.rawValue)])
     values.append(["weight", "Int", weight != nil ? "\(weight!)" : "NULL"])
     
     let data = MyData(

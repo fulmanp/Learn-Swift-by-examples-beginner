@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum DeviceType {
+enum DeviceType: String {
   case pump, motor, compressor
 }
 
